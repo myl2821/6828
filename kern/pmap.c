@@ -159,6 +159,7 @@ mem_init(void)
 
 	check_page_free_list(1);
 	check_page_alloc();
+	cprintf("check:%08x\n", kern_pgdir[0]);
 	check_page();
 
 	//////////////////////////////////////////////////////////////////////
@@ -252,7 +253,7 @@ page_init(void)
 	// free pages!
 	
 	// Phase 1
-	pages[0].pp_ref = 0; // Phase 1
+	pages[0].pp_ref = 0;
 	pages[0].pp_link = NULL;
 
 	// Phase 2
@@ -363,7 +364,34 @@ pte_t *
 pgdir_walk(pde_t *pgdir, const void *va, int create)
 {
 	// Fill this function in
-	return NULL;
+	// get page directory index of 'va'
+	const uint32_t va_pdx = PDX(va);
+	// try to access pde
+	uintptr_t *const pde = &pgdir[va_pdx];
+	if(!(*pde & PTE_P)) { // page table not exist
+		if(!create) {
+			// no need to create, returns NULL
+			return NULL;
+		}
+		// alloc a cleared page.
+		struct PageInfo *pi = page_alloc(ALLOC_ZERO);
+		if(!pi) {
+			// no available mem, returns NULL
+			return NULL;
+		} else {
+			(pi->pp_ref)++;
+			// get the PA which this PI reference to
+			// absolutely our entry should store PA but not VA!
+			const physaddr_t pagetable_pa = page2pa(pi);
+			// set this pde identify with 80386 manual(5.2 charpter)
+			// *safe* to leave Permission flag according to guide
+			*pde = PTE_P | PTE_W | PTE_U | PTE_ADDR(pagetable_pa);
+		}
+	}
+	const uintptr_t page_table_addr = PTE_ADDR(*pde);
+	const uint32_t va_ptx = PTX(va);
+	// find the VA mapped this PA for kernel accessing.
+	return (pte_t *)&((uint32_t *)KADDR(page_table_addr))[va_ptx];
 }
 
 //
@@ -381,6 +409,15 @@ static void
 boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
 {
 	// Fill this function in
+	size_t page_n = size / PGSIZE;
+	if(size % PGSIZE) {
+		page_n++; 
+	}
+	uint32_t i;
+	for(i = 0; i < page_n; i++) {
+		pte_t* pte = pgdir_walk(pgdir, (void*)(va + i*PGSIZE), 1);
+		*pte = PTE_ADDR(pa + i*PGSIZE) | perm | PTE_P;
+	}
 }
 
 //
@@ -412,6 +449,22 @@ int
 page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 {
 	// Fill this function in
+	pte_t *pte = pgdir_walk(pgdir, va, 1);
+	if (!pte) {
+		return -E_NO_MEM;
+	}
+
+	// corner case: same pp re-inserted
+	// ref++ before remove page so we won't set this page free in this case.
+	// otherwise we would inserted this in-use page into free_list 
+	// which may lead to kernel panic.
+	(pp->pp_ref)++;
+	if (PTE_P & *pte) {
+		page_remove(pgdir, va);
+	}
+	physaddr_t pa = page2pa(pp);
+	*pte = PTE_ADDR(pa) | perm | PTE_P;
+
 	return 0;
 }
 
@@ -430,7 +483,17 @@ struct PageInfo *
 page_lookup(pde_t *pgdir, void *va, pte_t **pte_store)
 {
 	// Fill this function in
-	return NULL;
+	pte_t *const pte = pgdir_walk(pgdir, va, 0);
+	if(pte == NULL || !(*pte & PTE_P)) {
+		return NULL;
+	}
+
+	if(pte_store) {
+		*pte_store = pte;
+	}
+
+	const physaddr_t pa = PTE_ADDR(*pte);
+	return pa2page(pa);
 }
 
 //
@@ -452,6 +515,15 @@ void
 page_remove(pde_t *pgdir, void *va)
 {
 	// Fill this function in
+	pte_t* pte;
+	struct PageInfo *pi = page_lookup(pgdir, va, &pte);
+	if(!pi) {
+		return;
+	}
+	*pte = 0;
+	assert(pi->pp_ref > 0);
+	page_decref(pi);
+	tlb_invalidate(pgdir, va);
 }
 
 //
