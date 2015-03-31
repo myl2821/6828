@@ -90,7 +90,6 @@ boot_alloc(uint32_t n)
 	// to any kernel code or global variables.
 	if (!nextfree) {
 		extern char end[];
-		//cprintf("end: %x\n", end);
 		nextfree = ROUNDUP((char *) end, PGSIZE);
 	}
 
@@ -146,6 +145,7 @@ mem_init(void)
 	// array.  'npages' is the number of physical pages in memory.  Use memset
 	// to initialize all fields of each struct PageInfo to 0.
 	// Your code goes here:
+	// allocate a chunk of mem to save page metadata.
 	pages = boot_alloc(npages * sizeof(struct PageInfo));
 	memset(pages, 0, npages * sizeof(struct PageInfo));
 
@@ -159,7 +159,6 @@ mem_init(void)
 
 	check_page_free_list(1);
 	check_page_alloc();
-	cprintf("check:%08x\n", kern_pgdir[0]);
 	check_page();
 
 	//////////////////////////////////////////////////////////////////////
@@ -172,6 +171,10 @@ mem_init(void)
 	//      (ie. perm = PTE_U | PTE_P)
 	//    - pages itself -- kernel RW, user NONE
 	// Your code goes here:
+	
+	// can generate this by msg from check_kern_pgdir()
+	boot_map_region(kern_pgdir, UPAGES, ROUNDUP(npages * sizeof(struct PageInfo), PGSIZE), PADDR(pages), (PTE_U|PTE_P) & ~PTE_U);
+
 
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel
@@ -184,6 +187,9 @@ mem_init(void)
 	//       overwrite memory.  Known as a "guard page".
 	//     Permissions: kernel RW, user NONE
 	// Your code goes here:
+	boot_map_region(kern_pgdir, KSTACKTOP-KSTKSIZE, ROUNDUP(KSTKSIZE, PGSIZE), PADDR(bootstack), (PTE_W|PTE_P) & ~PTE_U);
+
+
 
 	//////////////////////////////////////////////////////////////////////
 	// Map all of physical memory at KERNBASE.
@@ -193,6 +199,7 @@ mem_init(void)
 	// we just set up the mapping anyway.
 	// Permissions: kernel RW, user NONE
 	// Your code goes here:
+	boot_map_region(kern_pgdir, KERNBASE, ROUNDUP(~0 - KERNBASE, PGSIZE), 0, (PTE_W | PTE_P) & ~PTE_U);
 
 	// Check that the initial page directory has been set up correctly.
 	check_kern_pgdir();
@@ -723,7 +730,10 @@ check_kern_pgdir(void)
 			if (i >= PDX(KERNBASE)) {
 				assert(pgdir[i] & PTE_P);
 				assert(pgdir[i] & PTE_W);
+				// Not check up PTE_U at page dir
+				// Cuz we may trun it off at page table.
 			} else
+				// We didn't allocate any user mem yet.
 				assert(pgdir[i] == 0);
 			break;
 		}
