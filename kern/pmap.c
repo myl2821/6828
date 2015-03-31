@@ -173,7 +173,7 @@ mem_init(void)
 	// Your code goes here:
 	
 	// can generate this by msg from check_kern_pgdir()
-	boot_map_region(kern_pgdir, UPAGES, ROUNDUP(npages * sizeof(struct PageInfo), PGSIZE), PADDR(pages), (PTE_U|PTE_P) & ~PTE_U);
+	boot_map_region(kern_pgdir, UPAGES, ROUNDUP(npages * sizeof(struct PageInfo), PGSIZE), PADDR(pages), PTE_U|PTE_P);
 
 
 	//////////////////////////////////////////////////////////////////////
