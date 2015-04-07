@@ -82,6 +82,9 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 				eip_info.eip_fn_namelen,
 				eip_info.eip_fn_name,
 				ret_eip - eip_info.eip_fn_addr);
+		if (*(uint32_t *)ebp < ebp) {
+			break;
+		}
 		ebp = *(uint32_t *)ebp;
 	}
 	return 0;
