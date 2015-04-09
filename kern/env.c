@@ -202,7 +202,7 @@ env_setup_vm(struct Env *e)
 	boot_map_region(pde, KSTACKTOP-KSTKSIZE, ROUNDUP(KSTKSIZE, PGSIZE), PADDR(bootstack), PTE_W|PTE_P);
 
 	// mapping kernel space to 0
-	boot_map_region(pde, KERNBASE, ROUNDUP(~0 - KERNBASE, PGSIZE), 0, (PTE_W|PTE_P) & ~PTE_U);
+	boot_map_region(pde, KERNBASE, ROUNDUP(0xFFFFFFFF - KERNBASE, PGSIZE), 0, (PTE_W|PTE_P) & ~PTE_U);
 
 	++p->pp_ref;
 	e->env_pgdir = pde;
