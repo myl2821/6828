@@ -24,11 +24,7 @@ sys_cputs(const char *s, size_t len)
 	// Destroy the environment if not.
 
 	// LAB 3: Your code here.
-	int ret = user_mem_check(curenv, s, len, PTE_U);
-	if(ret) {
-		sys_env_destroy(sys_getenvid());
-		return;
-	}
+	user_mem_assert(curenv, s, len, PTE_U);
 
 	// Print the string supplied by the user.
 	cprintf("%.*s", len, s);
@@ -82,7 +78,7 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 
 	switch (syscallno) {
 		case SYS_cputs:
-			sys_cputs((const char *)a1, a2);
+			sys_cputs((const char *)a1, (size_t)a2);
 			return 0;
 		case SYS_cgetc:
 			return sys_cgetc();
