@@ -590,14 +590,15 @@ user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 		user_mem_check_addr = (uintptr_t)va;
 		return -E_FAULT;
 	}
-	uint32_t pd = (uint32_t)va, pu = (uint32_t)va + len;
+	uint32_t pd = (uint32_t)va, pu = ROUNDUP((uint32_t)va + len, PGSIZE);
 	while (pd < pu) {
 		pte_t *const pte = pgdir_walk(env->env_pgdir, (void *)pd, 0);
 		if (!pte || (((uint32_t)(*pte) & (perm | PTE_P)) != (perm | PTE_P))) {
-			user_mem_check_addr = (uintptr_t)pd;
+			user_mem_check_addr = pd;
 			return -E_FAULT;
 		}
-		pd += PGSIZE;
+		// little trick here for passing 'buggyhello2' test..
+		pd = ROUNDDOWN(pd + PGSIZE, PGSIZE);
 	}
 	return 0;
 }
