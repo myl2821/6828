@@ -117,6 +117,7 @@ env_init(void)
 	// Set up envs array
 	// LAB 3: Your code here.
 	uint32_t i;
+	// this OS support 'NENV' environments at most at the same time.
 	for(i = 0; i < NENV; i++) {
 		envs[i].env_id = 0;
 		envs[i].env_link = &envs[i+1];
@@ -192,18 +193,9 @@ env_setup_vm(struct Env *e)
 	memset(p, 0, PGSIZE);
 	pde_t *pde = page2kva(p);
 
-	// mapping pages
-	boot_map_region(pde, UPAGES, ROUNDUP(npages * sizeof(struct PageInfo), PGSIZE), PADDR(pages), PTE_U|PTE_P);
-
-	// mapping envs
-	boot_map_region(pde, UENVS, ROUNDUP(NENV * sizeof(struct Env), PGSIZE), PADDR(envs), PTE_U|PTE_P);
-
-	// mapping kernel stack
-	boot_map_region(pde, KSTACKTOP-KSTKSIZE, ROUNDUP(KSTKSIZE, PGSIZE), PADDR(bootstack), PTE_W|PTE_P);
-
-	// mapping kernel space to 0
-	boot_map_region(pde, KERNBASE, ROUNDUP(0xFFFFFFFF - KERNBASE, PGSIZE), 0, (PTE_W|PTE_P) & ~PTE_U);
-
+	// pde is just the same with kernel
+	// no need to map it again!
+	memmove(pde, kern_pgdir, PGSIZE);
 	++p->pp_ref;
 	e->env_pgdir = pde;
 

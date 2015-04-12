@@ -297,6 +297,8 @@ page_init(void)
 	// Phase 4
 	// kernel was placed at PA 0x00100000 and mapped to VA 0xf0100000(See kern/kernel.ld)
 	// one pagetable was reserved to place our kernel(Ser kern/entry_pgdir.c)
+	// so pgdir entry [npages_basemem, npages_basemem + NPTENTRIES) was skipped
+	// and memory among in this hole will never be allocated
 	for(i = npages_basemem + NPTENTRIES; i < npages; i++){
 		pages[i].pp_ref = 0;
 		pages[i].pp_link = page_free_list;
@@ -509,6 +511,8 @@ page_lookup(pde_t *pgdir, void *va, pte_t **pte_store)
 	// Fill this function in
 	pte_t *const pte = pgdir_walk(pgdir, va, 0);
 	if(pte == NULL || !(*pte & PTE_P)) {
+		if(pte_store)
+			*pte_store = NULL;
 		return NULL;
 	}
 
@@ -547,6 +551,7 @@ page_remove(pde_t *pgdir, void *va)
 	*pte = 0;
 	assert(pi->pp_ref > 0);
 	page_decref(pi);
+	// TLB: Translation Look-aside Buffers.
 	tlb_invalidate(pgdir, va);
 }
 
@@ -586,6 +591,8 @@ int
 user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 {
 	// LAB 3: Your code here.
+	
+	// Memory above ULIM cannot be accessed by user.
 	if ((uint32_t)va >= ULIM) {
 		user_mem_check_addr = (uintptr_t)va;
 		return -E_FAULT;

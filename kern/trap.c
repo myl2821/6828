@@ -283,6 +283,9 @@ page_fault_handler(struct Trapframe *tf)
 	// LAB 3: Your code here.
 	if((tf->tf_cs & 0x03) == 0) {
 		// CPL = 0. this code is from kernel.
+		// kernel should never meet pgflt
+		// so if we ge here 
+		// there is a kernel bug.
 		panic("page fault!\n");
 		return;
 	}
