@@ -48,9 +48,47 @@
  * Lab 3: Your code here for generating entry points for the different traps.
  */
 
+/* TRAPHANDLER_NOEC: TRAP WITHOUT ERR CODE*/
+/* TRAPHANDLER: TRAP WITH ERR CODE*/
 
+/* 0-10 */
+TRAPHANDLER_NOEC(divide, T_DIVIDE)
+TRAPHANDLER_NOEC(debug, T_DEBUG)
+TRAPHANDLER_NOEC(nmi, T_NMI)
+TRAPHANDLER_NOEC(brkpt, T_BRKPT)
+TRAPHANDLER_NOEC(oflow, T_OFLOW)
+TRAPHANDLER_NOEC(bound, T_BOUND)
+TRAPHANDLER_NOEC(illop, T_ILLOP)
+TRAPHANDLER_NOEC(device, T_DEVICE)
+TRAPHANDLER(dblflt, T_DBLFLT)
+TRAPHANDLER(tss, T_TSS)
+/* 11- */
+TRAPHANDLER(segnp, T_SEGNP)
+TRAPHANDLER(stack, T_STACK)
+TRAPHANDLER(gpflt, T_GPFLT)
+TRAPHANDLER(pgflt, T_PGFLT)
+TRAPHANDLER_NOEC(fperr, T_FPERR)
+TRAPHANDLER_NOEC(align, T_ALIGN)
+TRAPHANDLER_NOEC(mchk, T_MCHK)
+TRAPHANDLER(simderr, T_SIMDERR)
+TRAPHANDLER_NOEC(sysc, T_SYSCALL)
+TRAPHANDLER_NOEC(dft, T_DEFAULT)
 
 /*
  * Lab 3: Your code here for _alltraps
- */
+ */ 
 
+_alltraps:
+/* reverse to env_pop_tf */
+	push %ds
+	push %es
+/* save EFLAGS */
+	pushal
+
+/* ES and DS in trap can only be accessed by kernel for storing data. */
+	movw $GD_KD, %ax
+	movw %ax, %es
+	movw %ax, %ds
+
+	pushl %esp
+	call trap
