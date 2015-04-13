@@ -292,6 +292,10 @@ page_init(void)
 	// Change your code to mark the physical page at MPENTRY_PADDR
 	// as in use
 
+	pages[MPENTRY_PADDR / PGSIZE].pp_ref = 1;
+	pages[MPENTRY_PADDR / PGSIZE].pp_link = 0;
+
+
 	// The example code here marks all physical pages as free.
 	// However this is not truly the case.  What memory is free?
 	//  1) Mark physical page 0 as in use.
@@ -311,12 +315,14 @@ page_init(void)
 	// free pages!
 	
 	// Phase 1
-	pages[0].pp_ref = 0;
+	pages[0].pp_ref = 1;
 	pages[0].pp_link = NULL;
 
 	// Phase 2
 	size_t i;
 	for (i = 1; i < npages_basemem; i++) {
+		if(i == MPENTRY_PADDR / PGSIZE)
+			continue;
 		pages[i].pp_ref = 0;
 		pages[i].pp_link = page_free_list;
 		page_free_list = &pages[i];
@@ -633,7 +639,14 @@ mmio_map_region(physaddr_t pa, size_t size)
 	// Hint: The staff solution uses boot_map_region.
 	//
 	// Your code here:
-	panic("mmio_map_region not implemented");
+
+	if(base + size > MMIOLIM)
+		panic("out of mmio memory!\n");
+
+	boot_map_region(kern_pgdir, base, size, pa, PTE_W|PTE_P|PTE_PCD|PTE_PWT);
+	base += ROUNDUP(size, PGSIZE);
+	return (void *)base - ROUNDUP(size, PGSIZE);
+//	panic("mmio_map_region not implemented");
 }
 
 static uintptr_t user_mem_check_addr;
