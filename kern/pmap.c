@@ -155,7 +155,7 @@ mem_init(void)
 	//////////////////////////////////////////////////////////////////////
 	// Make 'envs' point to an array of size 'NENV' of 'struct Env'.
 	// LAB 3: Your code here.
-	envs = boot_alloc(NENV * sizeof(struct Env));
+	envs = (struct Env *)boot_alloc(NENV * sizeof(struct Env));
 	memset(envs, 0, NENV * sizeof(struct Env));
 
 	//////////////////////////////////////////////////////////////////////
@@ -206,8 +206,11 @@ mem_init(void)
 	//       overwrite memory.  Known as a "guard page".
 	//     Permissions: kernel RW, user NONE
 	// Your code goes here:
+	// 
+	// don't need this code anymore cuz we set up mem_init_mp
+/*
 	boot_map_region(kern_pgdir, KSTACKTOP-KSTKSIZE, ROUNDUP(KSTKSIZE, PGSIZE), PADDR(bootstack), PTE_W|PTE_P);
-
+*/
 
 
 	//////////////////////////////////////////////////////////////////////
@@ -271,6 +274,11 @@ mem_init_mp(void)
 	//
 	// LAB 4: Your code here:
 
+	int i;
+	for (i = 0; i < NCPU; i++) {
+		boot_map_region(kern_pgdir, KSTACKTOP - (i+1)*KSTKSIZE - i*KSTKGAP, KSTKSIZE, PADDR(percpu_kstacks[i]), PTE_W|PTE_P);
+	}
+
 }
 
 // --------------------------------------------------------------
@@ -291,10 +299,10 @@ page_init(void)
 	// LAB 4:
 	// Change your code to mark the physical page at MPENTRY_PADDR
 	// as in use
-
+/*
 	pages[MPENTRY_PADDR / PGSIZE].pp_ref = 1;
 	pages[MPENTRY_PADDR / PGSIZE].pp_link = 0;
-
+*/
 
 	// The example code here marks all physical pages as free.
 	// However this is not truly the case.  What memory is free?
@@ -524,7 +532,7 @@ page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 	// ref++ before remove page so we won't set this page free in this case.
 	// otherwise we would inserted this in-use page into free_list 
 	// which may lead to kernel panic.
-	(pp->pp_ref)++;
+	++pp->pp_ref;
 	if (PTE_P & *pte) {
 		page_remove(pgdir, va);
 	}
@@ -643,9 +651,13 @@ mmio_map_region(physaddr_t pa, size_t size)
 	if(base + size > MMIOLIM)
 		panic("out of mmio memory!\n");
 
-	boot_map_region(kern_pgdir, base, size, pa, PTE_W|PTE_P|PTE_PCD|PTE_PWT);
-	base += ROUNDUP(size, PGSIZE);
-	return (void *)base - ROUNDUP(size, PGSIZE);
+	uint32_t pu = ROUNDUP(pa + size, PGSIZE);
+	uint32_t pd = ROUNDDOWN(pa, PGSIZE);
+	uint32_t sz = pu - pd;
+
+	boot_map_region(kern_pgdir, base, sz, pd, PTE_W|PTE_P|PTE_PCD|PTE_PWT);
+	base += sz;
+	return (void *)(base - sz);
 //	panic("mmio_map_region not implemented");
 }
 

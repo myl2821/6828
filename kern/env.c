@@ -121,14 +121,17 @@ env_init(void)
 	// LAB 3: Your code here.
 	uint32_t i;
 	// this OS support 'NENV' environments at most at the same time.
-	for(i = 0; i < NENV; i++) {
+	for(i = 0; i < NENV - 1; i++) {
 		envs[i].env_id = 0;
 		envs[i].env_link = &envs[i+1];
 		envs[i].env_status = ENV_FREE;
 		envs[i].env_runs = 0;
 	}
 
+	envs[NENV - 1].env_id = NENV - 1;
 	envs[NENV - 1].env_link = NULL;
+	envs[NENV - 1].env_status = ENV_FREE;
+	envs[NENV - 1].env_runs = 0;
 	env_free_list = envs;
 
 	// Per-CPU part of the initialization
@@ -193,7 +196,6 @@ env_setup_vm(struct Env *e)
 	//    - The functions in kern/pmap.h are handy.
 
 	// LAB 3: Your code here.
-	memset(p, 0, PGSIZE);
 	pde_t *pde = page2kva(p);
 
 	// pde is just the same with kernel
@@ -559,7 +561,7 @@ env_run(struct Env *e)
 	//	e->env_tf to sensible values.
 
 	// LAB 3: Your code here.
-	if(curenv != NULL)
+	if(curenv != NULL && curenv->env_status == ENV_RUNNING)
 		curenv->env_status = ENV_RUNNABLE;
 	curenv = e;
 	curenv->env_status = ENV_RUNNING;
@@ -569,10 +571,11 @@ env_run(struct Env *e)
 	lcr3(PADDR(curenv->env_pgdir));
 
 	// Restore registers of the env.
-	// 
+	// jmp back to user mode.
 	// The first time we didn't implement trap handler in trap.c
 	// so sys would reboot after we run this routine.
 	// in gdb, set b *800a24(int $0x30) to check your work make sense.
+	unlock_kernel();
 	env_pop_tf(&(e->env_tf));
 
 	// Should never go here.
