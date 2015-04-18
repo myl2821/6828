@@ -30,9 +30,13 @@ sched_yield(void)
 
 	// LAB 4: Your code here.
 	
+	uint16_t i, j, curenvx;
+	// MST check if curenv == NULL here.
+	// because env_destroy would clear curenv.
 	if(curenv == NULL)
-		curenv = &envs[0];
-	uint16_t i, j, curenvx = ENVX(curenv->env_id);
+		curenvx = 0;
+	else
+		curenvx = ENVX(curenv->env_id);
 	for(j = 0; j < NENV; j++) {
 		i = (curenvx+j) % NENV;
 		if(envs[i].env_status == ENV_RUNNABLE) {
@@ -40,7 +44,7 @@ sched_yield(void)
 		}
 	}
 	// No other task, run the same env.
-	if(curenv->env_status == ENV_RUNNING) {
+	if(curenv && curenv->env_status == ENV_RUNNING) {
 		env_run(curenv); 
 	}
 

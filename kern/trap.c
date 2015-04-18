@@ -94,6 +94,26 @@ trap_init(void)
 	extern void sysc();
 	extern void dft();
 
+	// IRQs
+	extern void IRQ0();
+	extern void IRQ1();
+	extern void IRQ2();
+	extern void IRQ3();
+	extern void IRQ4();
+	extern void IRQ5();
+	extern void IRQ6();
+	extern void IRQ7();
+	extern void IRQ8();
+	extern void IRQ9();
+	extern void IRQ10();
+	extern void IRQ11();
+	extern void IRQ12();
+	extern void IRQ13();
+	extern void IRQ14();
+	extern void IRQ15();
+	extern void IRQ16();
+	extern void IRQ17();
+
 // mainly set trap hanler offset of CS. in JOS kernel we set CS = 0
 	SETGATE(idt[T_DIVIDE], 0, GD_KT, divide, 0);
 	SETGATE(idt[T_DEBUG], 0, GD_KT, debug, 0);
@@ -116,6 +136,23 @@ trap_init(void)
 	SETGATE(idt[T_SYSCALL], 0, GD_KT, sysc, 3);
 	SETGATE(idt[T_DEFAULT], 0, GD_KT, dft, 0);
 
+	// IRQs
+	SETGATE(idt[IRQ_OFFSET+0], 0, GD_KT, IRQ0, 0);
+	SETGATE(idt[IRQ_OFFSET+1], 0, GD_KT, IRQ1, 0);
+	SETGATE(idt[IRQ_OFFSET+2], 0, GD_KT, IRQ2, 0);
+	SETGATE(idt[IRQ_OFFSET+3], 0, GD_KT, IRQ3, 0);
+	SETGATE(idt[IRQ_OFFSET+4], 0, GD_KT, IRQ4, 0);
+	SETGATE(idt[IRQ_OFFSET+5], 0, GD_KT, IRQ5, 0);
+	SETGATE(idt[IRQ_OFFSET+6], 0, GD_KT, IRQ6, 0);
+	SETGATE(idt[IRQ_OFFSET+7], 0, GD_KT, IRQ7, 0);
+	SETGATE(idt[IRQ_OFFSET+8], 0, GD_KT, IRQ8, 0);
+	SETGATE(idt[IRQ_OFFSET+9], 0, GD_KT, IRQ9, 0);
+	SETGATE(idt[IRQ_OFFSET+10], 0, GD_KT, IRQ10, 0);
+	SETGATE(idt[IRQ_OFFSET+11], 0, GD_KT, IRQ11, 0);
+	SETGATE(idt[IRQ_OFFSET+12], 0, GD_KT, IRQ12, 0);
+	SETGATE(idt[IRQ_OFFSET+13], 0, GD_KT, IRQ13, 0);
+	SETGATE(idt[IRQ_OFFSET+14], 0, GD_KT, IRQ14, 0);
+	SETGATE(idt[IRQ_OFFSET+15], 0, GD_KT, IRQ15, 0);
 
 	// Per-CPU setup 
 	trap_init_percpu();
@@ -230,11 +267,6 @@ trap_dispatch(struct Trapframe *tf)
 		print_trapframe(tf);
 		return;
 	}
-
-	// Handle clock interrupts. Don't forget to acknowledge the
-	// interrupt using lapic_eoi() before calling the scheduler!
-	// LAB 4: Your code here.
-
 	switch(tf->tf_trapno) {
 	
 		case T_DEBUG:
@@ -261,6 +293,13 @@ trap_dispatch(struct Trapframe *tf)
 						tf->tf_regs.reg_ebx,
 						tf->tf_regs.reg_edi,
 						tf->tf_regs.reg_esi);
+			return;
+		case IRQ_OFFSET+IRQ_TIMER:
+			// Handle clock interrupts. Don't forget to acknowledge the
+			// interrupt using lapic_eoi() before calling the scheduler!
+			// LAB 4: Your code here.
+			lapic_eoi();
+			sched_yield();
 			return;
 		default:
 			break;
