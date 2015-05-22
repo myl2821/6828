@@ -16,7 +16,6 @@ pgfault(struct UTrapframe *utf)
 {
 	void *addr = (void *) utf->utf_fault_va;
 	uint32_t err = utf->utf_err;
-	int r;
 
 	// Check that the faulting access was (1) a write, and (2) to a
 	// copy-on-write page.  If not, panic.
@@ -26,6 +25,12 @@ pgfault(struct UTrapframe *utf)
 
 	// LAB 4: Your code here.
 
+	assert(err & FEC_WR);
+	assert(err & FEC_U);
+	assert(uvpd[PDX(addr)] & PTE_P);
+	assert(uvpt[PGNUM(addr)] & PTE_P);
+	assert(uvpt[PGNUM(addr)] & PTE_COW);
+
 	// Allocate a new page, map it at a temporary location (PFTEMP),
 	// copy the data from the old page to the new page, then move the new
 	// page to the old page's address.
@@ -33,8 +38,16 @@ pgfault(struct UTrapframe *utf)
 	//   You should make three system calls.
 
 	// LAB 4: Your code here.
+	
+	// we MUST ROUNDDOWN addr to copy whole page in 'memmove'
+	// and mapping it to new va
+	addr = ROUNDDOWN(addr, PGSIZE);
 
-	panic("pgfault not implemented");
+	assert(sys_page_alloc(0, PFTEMP, PTE_W|PTE_U|PTE_P) == 0);
+	memmove(PFTEMP, addr, PGSIZE);
+	assert(sys_page_map(0, PFTEMP, 0, addr, PTE_W|PTE_U|PTE_P) == 0);
+	assert(sys_page_unmap(0, PFTEMP) == 0);
+	return;
 }
 
 //
@@ -51,10 +64,16 @@ pgfault(struct UTrapframe *utf)
 static int
 duppage(envid_t envid, unsigned pn)
 {
-	int r;
-
 	// LAB 4: Your code here.
-	panic("duppage not implemented");
+	void *addr = (void *)(pn * PGSIZE);
+	uint32_t perm = PGOFF(uvpt[pn]);
+	uint32_t cow_perm = PTE_COW|(perm & ~PTE_W);
+	if ((uvpt[pn] & PTE_W) || (uvpt[pn] & PTE_COW)) {
+		assert(sys_page_map(0, addr, envid, addr, cow_perm) == 0);
+		assert(sys_page_map(0, addr, 0, addr, cow_perm) == 0);
+	} else {
+		assert(sys_page_map(0, addr, envid, addr, perm) == 0);
+	}
 	return 0;
 }
 
@@ -78,7 +97,38 @@ envid_t
 fork(void)
 {
 	// LAB 4: Your code here.
-	panic("fork not implemented");
+
+	// set up global pgfault handler for user space.
+	set_pgfault_handler(pgfault);
+
+	// steal code from dumbfork...
+	envid_t envid = sys_exofork();
+	uint32_t addr;
+	assert(envid >= 0);
+	if (envid == 0) {
+		thisenv = &envs[ENVX(sys_getenvid())];
+		return 0;
+	}
+
+	// [USTACKTOP, UXSTACKTOP) is belong to user exception stack.
+	// exception stack CANNOT be marked COW.
+	for (addr = 0; addr < USTACKTOP; addr += PGSIZE) {
+		if ((uvpd[PDX(addr)] & PTE_P)
+				&& (uvpt[PGNUM(addr)] & PTE_P)
+				&& (uvpt[PGNUM(addr)] & PTE_U)) {
+			duppage(envid, PGNUM(addr));
+		}
+	}
+
+	assert(sys_page_alloc(envid, (void *)(UXSTACKTOP-PGSIZE), PTE_U|PTE_W|PTE_P) == 0);
+
+	// MUST set it explicitly for child.
+	extern void _pgfault_upcall();
+	sys_env_set_pgfault_upcall(envid, _pgfault_upcall);
+
+	assert(sys_env_set_status(envid, ENV_RUNNABLE) == 0);
+
+	return envid;
 }
 
 // Challenge!
