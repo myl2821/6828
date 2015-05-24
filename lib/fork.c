@@ -61,14 +61,17 @@ pgfault(struct UTrapframe *utf)
 // Returns: 0 on success, < 0 on error.
 // It is also OK to panic on error.
 //
-static int
+int
 duppage(envid_t envid, unsigned pn)
 {
 	// LAB 4: Your code here.
 	void *addr = (void *)(pn * PGSIZE);
 	uint32_t perm = PGOFF(uvpt[pn]);
 	uint32_t cow_perm = PTE_COW|(perm & ~PTE_W);
-	if ((uvpt[pn] & PTE_W) || (uvpt[pn] & PTE_COW)) {
+
+	if (uvpt[pn] & PTE_P && uvpt[pn] & PTE_SHARE) {
+		assert(sys_page_map(0, addr, envid, addr, uvpt[pn] & PTE_SYSCALL) == 0);
+	} else if ((uvpt[pn] & PTE_W) || (uvpt[pn] & PTE_COW)) {
 		assert(sys_page_map(0, addr, envid, addr, cow_perm) == 0);
 		assert(sys_page_map(0, addr, 0, addr, cow_perm) == 0);
 	} else {

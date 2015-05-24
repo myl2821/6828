@@ -11,6 +11,8 @@ static int map_segment(envid_t child, uintptr_t va, size_t memsz,
 		       int fd, size_t filesz, off_t fileoffset, int perm);
 static int copy_shared_pages(envid_t child);
 
+int duppage(envid_t envid, unsigned pn);
+
 // Spawn a child process from a program image loaded from the file system.
 // prog: the pathname of the program to run.
 // argv: pointer to null-terminated array of pointers to strings,
@@ -301,6 +303,13 @@ static int
 copy_shared_pages(envid_t child)
 {
 	// LAB 5: Your code here.
+	uint32_t addr;
+
+	for (addr = 0; addr < USTACKTOP - PGSIZE; addr += PGSIZE) {
+		if ((uvpd[PDX(addr)] & PTE_P) && (uvpt[PGNUM(addr)] & PTE_SHARE)) {
+			duppage(child, PGNUM(addr));
+		}
+	}
 	return 0;
 }
 

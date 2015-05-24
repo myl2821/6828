@@ -83,7 +83,7 @@ flush_block(void *addr)
 	// LAB 5: Your code here.
 	int r;
 	if (!va_is_mapped(addr))
-		panic("flush_block of bad va %08x", addr);
+		return;
 
 	if (va_is_dirty(addr)) {
 		addr = ROUNDDOWN(addr, PGSIZE);
