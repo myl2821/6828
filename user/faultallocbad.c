@@ -20,5 +20,7 @@ void
 umain(int argc, char **argv)
 {
 	set_pgfault_handler(handler);
+	// sys_cputs check pointer and kill this program
+	// so we doesn't fall into pgfault trap.
 	sys_cputs((char*)0xDEADBEEF, 4);
 }

@@ -119,6 +119,20 @@ env_init(void)
 {
 	// Set up envs array
 	// LAB 3: Your code here.
+	uint32_t i;
+	// this OS support 'NENV' environments at most at the same time.
+	for(i = 0; i < NENV - 1; i++) {
+		envs[i].env_id = 0;
+		envs[i].env_link = &envs[i+1];
+		envs[i].env_status = ENV_FREE;
+		envs[i].env_runs = 0;
+	}
+
+	envs[NENV - 1].env_id = NENV - 1;
+	envs[NENV - 1].env_link = NULL;
+	envs[NENV - 1].env_status = ENV_FREE;
+	envs[NENV - 1].env_runs = 0;
+	env_free_list = envs;
 
 	// Per-CPU part of the initialization
 	env_init_percpu();
@@ -182,6 +196,13 @@ env_setup_vm(struct Env *e)
 	//    - The functions in kern/pmap.h are handy.
 
 	// LAB 3: Your code here.
+	pde_t *pde = page2kva(p);
+
+	// pde is just the same with kernel
+	// no need to map it again!
+	memmove(pde, kern_pgdir, PGSIZE);
+	++p->pp_ref;
+	e->env_pgdir = pde;
 
 	// UVPT maps the env's own page table read-only.
 	// Permissions: kernel R, user R
@@ -247,6 +268,7 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 
 	// Enable interrupts while in user mode.
 	// LAB 4: Your code here.
+	e->env_tf.tf_eflags |= FL_IF;
 
 	// Clear the page fault handler until user installs one.
 	e->env_pgfault_upcall = 0;
@@ -279,6 +301,19 @@ region_alloc(struct Env *e, void *va, size_t len)
 	//   'va' and 'len' values that are not page-aligned.
 	//   You should round va down, and round (va + len) up.
 	//   (Watch out for corner-cases!)
+	struct PageInfo *p;
+
+	uint32_t va_down = ROUNDDOWN((uint32_t)va, PGSIZE);
+	uint32_t va_up = ROUNDUP((uint32_t)(va + len), PGSIZE);
+
+	uint32_t ptr;
+	for(ptr = va_down; ptr < va_up; ptr += PGSIZE) {
+		if (!(p = page_alloc(0)))
+			panic("region_alloc: %e\n", -E_NO_MEM);
+		if (page_insert(e->env_pgdir, p, (void*)ptr, PTE_P|PTE_U|PTE_W)) {
+			panic("region_alloc: page insert!\n");
+		}
+	}
 }
 
 //
@@ -335,11 +370,52 @@ load_icode(struct Env *e, uint8_t *binary)
 	//  What?  (See env_run() and env_pop_tf() below.)
 
 	// LAB 3: Your code here.
+	
+	// switch to this user environment
+	lcr3(PADDR(e->env_pgdir));
+	
+	struct Elf *ELFHDR = (struct Elf*)binary;
+	struct Proghdr *ph, *eph;
+
+	if(ELFHDR->e_magic != ELF_MAGIC)
+		panic("pid %d: load Invalid ELF!\n", e->env_id);
+	
+	ph = (struct Proghdr *)((uint8_t *)ELFHDR + ELFHDR->e_phoff);
+	eph = ph + ELFHDR->e_phnum;
+	for(; ph < eph; ph++) {
+		if(ph->p_type != ELF_PROG_LOAD) {
+			continue;
+		}
+		assert(ph->p_filesz <= ph->p_memsz);
+
+		// alloc mem for loading segment into it.
+		region_alloc(e, (void *)ph->p_va, ph->p_memsz);
+		// copy data into VA.
+		memmove((void *)ph->p_va,
+				(void *)((uint32_t)binary + ph->p_offset),
+				ph->p_filesz);
+		// remained bytes should be cleared to zero.
+		memset((void*)((uint32_t)ph->p_va + ph->p_filesz),
+				0,
+				ph->p_memsz - ph->p_filesz);
+	}
+
+	//  environment starts executing here.
+	e->env_tf.tf_eip = ELFHDR->e_entry;
 
 	// Now map one page for the program's initial stack
 	// at virtual address USTACKTOP - PGSIZE.
 
 	// LAB 3: Your code here.
+	struct PageInfo *user_stack = page_alloc(ALLOC_ZERO);
+	assert(user_stack != NULL);
+	page_insert(e->env_pgdir, user_stack,
+			(void *)(USTACKTOP - PGSIZE),
+			PTE_P|PTE_U|PTE_W);
+
+	// This user env has been set up.
+	// Now go back to kernel environment.
+	lcr3(PADDR(kern_pgdir));
 }
 
 //
@@ -353,9 +429,16 @@ void
 env_create(uint8_t *binary, enum EnvType type)
 {
 	// LAB 3: Your code here.
+	struct Env *env;
+	assert(env_alloc(&env, 0) == 0);
+	load_icode(env, binary);
+	env->env_type = type;
 
 	// If this is the file server (type == ENV_TYPE_FS) give it I/O privileges.
 	// LAB 5: Your code here.
+	if (type == ENV_TYPE_FS) {
+		env->env_tf.tf_eflags |= FL_IOPL_MASK;
+	}
 }
 
 //
@@ -485,7 +568,24 @@ env_run(struct Env *e)
 	//	e->env_tf to sensible values.
 
 	// LAB 3: Your code here.
+	if(curenv != NULL && curenv->env_status == ENV_RUNNING)
+		curenv->env_status = ENV_RUNNABLE;
+	curenv = e;
+	curenv->env_status = ENV_RUNNING;
+	++curenv->env_runs;
 
+	// Now switch into this environment.
+	lcr3(PADDR(curenv->env_pgdir));
+
+	// Restore registers of the env.
+	// jmp back to user mode.
+	// The first time we didn't implement trap handler in trap.c
+	// so sys would reboot after we run this routine.
+	// in gdb, set b *800a24(int $0x30) to check your work make sense.
+	unlock_kernel();
+	env_pop_tf(&(e->env_tf));
+
+	// Should never go here.
 	panic("env_run not yet implemented");
 }
 
