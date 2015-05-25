@@ -88,6 +88,27 @@ open(const char *path, int mode)
 	return fd2num(fd);
 }
 
+// Remove a file (or directory).
+//
+// Returns:
+// 	0 on success
+// 	-E_BAD_PATH if the path is too long (>= MAXPATHLEN)
+// 	< 0 for other errors.
+int
+remove(const char *path)
+{
+	int r;
+
+	if (strlen(path) >= MAXPATHLEN)
+		return -E_BAD_PATH;
+
+	strcpy(fsipcbuf.remove.req_path, path);
+
+	fsipc(FSREQ_REMOVE, fd);
+	return r;
+}
+
+
 // Flush the file descriptor.  After this the fileid is invalid.
 //
 // This function is called by fd_close.  fd_close will take care of

@@ -200,6 +200,14 @@ serve_set_size(envid_t envid, struct Fsreq_set_size *req)
 	return file_set_size(o->o_file, req->req_size);
 }
 
+int
+serve_remove(envid_t envid, union Fsipc *ipc)
+{
+	struct Fsreq_remove *req = &ipc->remove;
+	return file_remove(req->req_path);
+}
+
+
 // Read at most ipc->read.req_n bytes from the current seek position
 // in ipc->read.req_fileid.  Return the bytes read from the file to
 // the caller in ipc->readRet, then update the seek position.  Returns
@@ -307,6 +315,7 @@ fshandler handlers[] = {
 	// Open is handled specially because it passes pages
 	/* [FSREQ_OPEN] =	(fshandler)serve_open, */
 	[FSREQ_READ] =		serve_read,
+	[FSREQ_REMOVE] =	serve_remove,
 	[FSREQ_STAT] =		serve_stat,
 	[FSREQ_FLUSH] =		(fshandler)serve_flush,
 	[FSREQ_WRITE] =		(fshandler)serve_write,

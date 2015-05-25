@@ -147,7 +147,6 @@ include net/Makefrag
 
 CPUS ?= 1
 
-<<<<<<< HEAD
 PORT7	:= $(shell expr $(GDBPORT) + 1)
 PORT80	:= $(shell expr $(GDBPORT) + 2)
 

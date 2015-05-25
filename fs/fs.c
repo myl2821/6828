@@ -486,6 +486,23 @@ file_flush(struct File *f)
 		flush_block(diskaddr(f->f_indirect));
 }
 
+int file_remove(const char *path) {
+	char name[MAXNAMELEN];
+	int r;
+	struct File *dir, *f;
+
+	if ((r = walk_path(path, &dir, &f, 0)) != 0)
+		return -E_NOT_FOUND;
+
+	file_truncate_blocks(f, 0);
+	f->f_size = 0;
+	f->f_type = FTYPE_REG;
+	f->f_name[0] = '\0';
+
+	file_flush(dir);
+	return 0;
+}
+
 
 // Sync the entire file system.  A big hammer.
 void
