@@ -104,7 +104,7 @@ remove(const char *path)
 
 	strcpy(fsipcbuf.remove.req_path, path);
 
-	fsipc(FSREQ_REMOVE, fd);
+	fsipc(FSREQ_REMOVE, NULL);
 	return r;
 }
 
