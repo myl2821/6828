@@ -21,6 +21,7 @@ umain(int argc, char **argv)
 	if (output_envid < 0)
 		panic("error forking");
 	else if (output_envid == 0) {
+		// Manually run the output Env.
 		output(ns_envid);
 		return;
 	}
